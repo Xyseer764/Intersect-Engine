@@ -325,7 +325,7 @@ namespace Intersect.Server.Entities
                     }
 
                     //Regen Timers
-                    if (timeMs > CombatTimer && timeMs > RegenTimer)
+                    if (timeMs > RegenTimer)
                     {
                         ProcessRegen();
                         RegenTimer = timeMs + Options.RegenTime;
@@ -796,7 +796,7 @@ namespace Intersect.Server.Entities
         //Returns the amount of time required to traverse 1 tile
         public virtual float GetMovementTime()
         {
-            var time = 1000f / (float) (1 + Math.Log(Stat[(int) Stats.Speed].Value()));
+            var time = 1000f / (float) (4 + (Stat[(int)Stats.Speed]) / 100.0);
             if (Blocking)
             {
                 time += time * Options.BlockingSlow;
@@ -2443,6 +2443,44 @@ namespace Intersect.Server.Entities
                 return;
             }
 
+            if (killer is Player && this is Player)
+            {
+                var ply = this as Player;
+                var playerKiller = killer as Player;
+                foreach (var v in ply.Variables) //search for faction allegiance
+                {
+                    if (v.VariableId.ToString() == "32fd010c-4e92-4e63-96eb-115b2e5679d9") //faction allegiance
+                    {
+                        foreach (var k in playerKiller.Variables)
+                        {
+                            if (k.VariableId.ToString() == "d4aaa836-3944-4621-8203-41180278cd82") //killed faction
+                            {
+                                long temp = v.Value;
+                                playerKiller.SetVariableValue(k.VariableId, temp);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+                foreach (var v in ply.Variables) //search for total time
+                {
+                    if (v.VariableId.ToString() == "fb9c73d8-98ad-4b3c-a03d-2526be92ba2f") //total time
+                    {
+                        foreach (var k in playerKiller.Variables)
+                        {
+                            if (k.VariableId.ToString() == "c24f7ada-b2a2-4714-9773-99122bc81ce7") //total time to get
+                            {
+                                long temp = v.Value;
+                                playerKiller.SetVariableValue(k.VariableId, temp);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
             // Run events and other things.
             killer?.KilledEntity(this);
 
@@ -2552,7 +2590,12 @@ namespace Intersect.Server.Entities
                     //Player drop rates
                     if (Randomization.Next(1, 101) >= itemBase.DropChanceOnDeath * luck)
                     {
-                        continue;
+                        if (itemBase.DropChanceOnDeath > 0)
+                        {
+                            var ply = this as Player; //if the item has ANY drop chance on death, destroy it
+                            ply?.TryTakeItem(Items[n], item.Quantity);
+                        }
+                        continue; // Don't drop the item
                     }
 
                     // It's a player, try and set ownership to the player that killed them.. If it was a player.
